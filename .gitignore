@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Flutter
+.build/
+.dart_tool/
+.packages
+.pub-cache/
+build/
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
