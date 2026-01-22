@@ -2,52 +2,49 @@ from db import get_db_connection
 import mysql.connector
 import bcrypt
 from decimal import Decimal
-from datetime import datetime
+from datetime import date, datetime
 
 
 # ---------- UTIL ----------
+def serialize(val):
+    if isinstance(val, Decimal):
+        return float(val)
+    if isinstance(val, (date, datetime)):
+        return val.isoformat()
+    return val
 
-def serialize(value):
-    if isinstance(value, Decimal):
-        return float(value)
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return value
 
-
-# ---------- REQUEST ROUTER ----------
-
+# ---------- ROUTER ----------
 def handle_request(data):
     action = data.get("action")
 
-    if action == "signup":
-        return signup(data)
-    elif action == "login":
-        return login(data)
-    elif action == "add_expense":
-        return add_expense(data)
-    elif action == "get_expenses":
-        return get_expenses(data)
-    elif action == "get_total":
-        return get_total(data)
-    else:
-        return {
-            "status": "error",
-            "message": "Invalid action"
-        }
+    print("📨 ACTION:", action)
+    print("📨 DATA:", data)
+
+    routes = {
+        "signup": signup,
+        "login": login,
+        "add_expense": add_expense,
+        "get_expenses": get_expenses,
+        "get_total": get_total,
+        "category_summary": category_summary,
+    }
+
+    handler = routes.get(action)
+    if not handler:
+        return {"status": "error", "message": "Invalid action"}
+
+    return handler(data)
 
 
 # ---------- AUTH ----------
-
 def signup(data):
-    username = data.get("username")
-    password = data.get("password")
+    full_name = data.get("full_name", "").strip()
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "").strip()
 
-    if not username or not password:
-        return {
-            "status": "error",
-            "message": "Missing credentials"
-        }
+    if not full_name or not email or not password:
+        return {"status": "error", "message": "Missing fields"}
 
     password_hash = bcrypt.hashpw(
         password.encode("utf-8"),
@@ -57,34 +54,35 @@ def signup(data):
     conn = cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
+
+        # Check duplicate email
+        cursor.execute(
+            "SELECT id FROM users WHERE email=%s",
+            (email,)
+        )
+        if cursor.fetchone():
+            return {"status": "error", "message": "Email already exists"}
 
         cursor.execute(
             """
-            INSERT INTO users (username, password_hash)
-            VALUES (%s, %s)
+            INSERT INTO users (full_name, email, password_hash)
+            VALUES (%s, %s, %s)
             """,
-            (username, password_hash)
+            (full_name, email, password_hash)
         )
 
         conn.commit()
 
+        print("✅ USER CREATED:", email)
         return {
             "status": "success",
             "user_id": cursor.lastrowid
         }
 
-    except mysql.connector.IntegrityError:
-        return {
-            "status": "error",
-            "message": "Username already exists"
-        }
-
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        print("❌ SIGNUP ERROR:", e)
+        return {"status": "error", "message": "Signup failed"}
 
     finally:
         if cursor:
@@ -94,14 +92,13 @@ def signup(data):
 
 
 def login(data):
-    username = data.get("username")
-    password = data.get("password")
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "").strip()
 
-    if not username or not password:
-        return {
-            "status": "error",
-            "message": "Missing credentials"
-        }
+    print(f"🔍 LOGIN EMAIL RECEIVED: '{email}'")
+
+    if not email or not password:
+        return {"status": "error", "message": "Missing fields"}
 
     conn = cursor = None
     try:
@@ -109,32 +106,25 @@ def login(data):
         cursor = conn.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT id, password_hash FROM users WHERE username = %s",
-            (username,)
+            """
+            SELECT id, password_hash
+            FROM users
+            WHERE email=%s
+            """,
+            (email,)
         )
 
         user = cursor.fetchone()
+        print("🔍 DB USER:", user)
 
         if not user:
-            return {
-                "status": "error",
-                "message": "User not found"
-            }
+            return {"status": "error", "message": "User not found"}
 
         if not bcrypt.checkpw(
             password.encode("utf-8"),
             user["password_hash"].encode("utf-8")
         ):
-            return {
-                "status": "error",
-                "message": "Invalid password"
-            }
-
-        cursor.execute(
-            "UPDATE users SET last_login = NOW() WHERE id = %s",
-            (user["id"],)
-        )
-        conn.commit()
+            return {"status": "error", "message": "Wrong password"}
 
         return {
             "status": "success",
@@ -142,10 +132,8 @@ def login(data):
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        print("❌ LOGIN ERROR:", e)
+        return {"status": "error", "message": "Login failed"}
 
     finally:
         if cursor:
@@ -155,8 +143,12 @@ def login(data):
 
 
 # ---------- EXPENSES ----------
-
 def add_expense(data):
+    required = ["user_id", "amount", "category", "date"]
+    for field in required:
+        if field not in data:
+            return {"status": "error", "message": f"Missing field {field}"}
+
     conn = cursor = None
     try:
         conn = get_db_connection()
@@ -164,19 +156,23 @@ def add_expense(data):
 
         cursor.execute(
             """
-            INSERT INTO expenses (user_id, amount, category, note)
+            INSERT INTO expenses (user_id, amount, category_name, expense_date)
             VALUES (%s, %s, %s, %s)
             """,
             (
-                data["user_id"],
+                int(data["user_id"]),
                 float(data["amount"]),
                 data["category"],
-                data.get("note", "")
+                data["date"]
             )
         )
 
         conn.commit()
         return {"status": "success"}
+
+    except Exception as e:
+        print("❌ ADD EXPENSE ERROR:", e)
+        return {"status": "error", "message": "Failed to add expense"}
 
     finally:
         if cursor:
@@ -186,6 +182,10 @@ def add_expense(data):
 
 
 def get_expenses(data):
+    user_id = data.get("user_id")
+    if not user_id:
+        return {"status": "error", "message": "Missing user_id"}
+
     conn = cursor = None
     try:
         conn = get_db_connection()
@@ -193,22 +193,19 @@ def get_expenses(data):
 
         cursor.execute(
             """
-            SELECT amount, category, note, created_at
+            SELECT id, amount, category_name, expense_date
             FROM expenses
-            WHERE user_id = %s
-            ORDER BY created_at DESC
+            WHERE user_id=%s
+            ORDER BY expense_date DESC
             """,
-            (data["user_id"],)
+            (user_id,)
         )
 
         rows = cursor.fetchall()
 
         return {
             "status": "success",
-            "expenses": [
-                {k: serialize(v) for k, v in row.items()}
-                for row in rows
-            ]
+            "data": [{k: serialize(v) for k, v in row.items()} for row in rows]
         }
 
     finally:
@@ -219,19 +216,59 @@ def get_expenses(data):
 
 
 def get_total(data):
+    user_id = data.get("user_id")
+    if not user_id:
+        return {"status": "error", "message": "Missing user_id"}
+
     conn = cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT IFNULL(SUM(amount), 0) FROM expenses WHERE user_id = %s",
-            (data["user_id"],)
+            """
+            SELECT IFNULL(SUM(amount), 0)
+            FROM expenses
+            WHERE user_id=%s
+            """,
+            (user_id,)
         )
+
+        total = cursor.fetchone()[0]
+        return {"status": "success", "total": float(total)}
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def category_summary(data):
+    user_id = data.get("user_id")
+    if not user_id:
+        return {"status": "error", "message": "Missing user_id"}
+
+    conn = cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT category_name, SUM(amount) AS total
+            FROM expenses
+            WHERE user_id=%s
+            GROUP BY category_name
+            """,
+            (user_id,)
+        )
+
+        rows = cursor.fetchall()
 
         return {
             "status": "success",
-            "total": float(cursor.fetchone()[0])
+            "data": [{k: serialize(v) for k, v in row.items()} for row in rows]
         }
 
     finally:

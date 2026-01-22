@@ -33,20 +33,21 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : expenses.isEmpty
-              ? const Center(
-                  child: Text(
-                    "No expenses added yet",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                )
+              ? const Center(child: Text("No expenses yet"))
               : ListView.builder(
                   itemCount: expenses.length,
-                  itemBuilder: (context, index) {
-                    final e = expenses[index];
-                    return ListTile(
-                      title: Text(e["category"] ?? "Expense"),
-                      subtitle: Text(e["note"] ?? ""),
-                      trailing: Text("₹${e["amount"]}"),
+                  itemBuilder: (_, i) {
+                    final e = expenses[i];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: ListTile(
+                        title: Text(e["category"]),
+                        subtitle: Text(e["note"] ?? ""),
+                        trailing: Text("₹${e["amount"]}"),
+                      ),
                     );
                   },
                 ),

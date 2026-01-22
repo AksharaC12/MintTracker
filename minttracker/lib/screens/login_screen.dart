@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
-import 'dashboard_screen.dart';
+import '../widgets/bottom_nav.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,8 +11,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   final SocketService _socketService = SocketService();
 
@@ -20,9 +20,11 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
-    if (_usernameController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
-      setState(() => _error = "All fields are required");
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = "Email and password are required");
       return;
     }
 
@@ -32,67 +34,77 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final response = await _socketService.send({
-        "action": "login",
-        "username": _usernameController.text.trim(),
-        "password": _passwordController.text,
-      });
+      await _socketService.login(email, password);
 
-      if (response["status"] == "success") {
-        _socketService.setUser(response["user_id"]);
+      if (!mounted) return;
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
-      } else {
-        setState(() {
-          _error = response["message"] ?? "Invalid credentials";
-        });
-      }
-    } catch (_) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScaffold()),
+        (_) => false,
+      );
+    } catch (e) {
       setState(() {
-        _error = "Unable to connect to server";
+        _error = e.toString().replaceFirst("Exception: ", "");
       });
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 80),
               const Text(
-                "Welcome Back",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                "MintTracker",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
               TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: "Username"),
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: "Password"),
+                decoration: const InputDecoration(
+                  labelText: "Password",
+                  border: OutlineInputBorder(),
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
               const SizedBox(height: 24),
               SizedBox(
-                width: double.infinity,
+                height: 48,
                 child: ElevatedButton(
                   onPressed: _loading ? null : _login,
                   child: _loading
@@ -100,11 +112,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text("Login"),
                 ),
               ),
+              const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const SignupScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const SignupScreen(),
+                    ),
                   );
                 },
                 child: const Text("Create new account"),

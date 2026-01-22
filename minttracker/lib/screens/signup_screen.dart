@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
-import 'dashboard_screen.dart';
+import '../widgets/bottom_nav.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -10,8 +10,9 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   final SocketService _socketService = SocketService();
 
@@ -19,7 +20,8 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _error;
 
   Future<void> _signup() async {
-    if (_usernameController.text.trim().isEmpty ||
+    if (_nameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
         _passwordController.text.isEmpty) {
       setState(() => _error = "All fields are required");
       return;
@@ -31,27 +33,21 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      final response = await _socketService.send({
-        "action": "signup",
-        "username": _usernameController.text.trim(),
-        "password": _passwordController.text,
+      await _socketService.signup(
+        _nameController.text.trim(),
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScaffold()),
+        (_) => false,
+      );
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll("Exception: ", "");
       });
-
-      if (response["status"] == "success") {
-        _socketService.setUser(response["user_id"]);
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-          (_) => false,
-        );
-      } else {
-        setState(() {
-          _error = response["message"] ?? "Signup failed";
-        });
-      }
-    } catch (_) {
-      setState(() => _error = "Server error. Try again.");
     } finally {
       setState(() => _loading = false);
     }
@@ -60,7 +56,6 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text("Create Account"),
@@ -71,36 +66,68 @@ class _SignupScreenState extends State<SignupScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
               const Text(
                 "MintTracker",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
+
+              // Full Name
               TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(labelText: "Username"),
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "Full Name",
+                  border: OutlineInputBorder(),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+
+              // Email
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Password
               TextField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: "Password"),
+                decoration: const InputDecoration(
+                  labelText: "Password",
+                  border: OutlineInputBorder(),
+                ),
               ),
+
               if (_error != null) ...[
                 const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
               ],
-              const SizedBox(height: 30),
+
+              const SizedBox(height: 24),
+
               SizedBox(
-                width: double.infinity,
+                height: 48,
                 child: ElevatedButton(
                   onPressed: _loading ? null : _signup,
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Sign Up"),
+                      : const Text("Create Account"),
                 ),
               ),
             ],

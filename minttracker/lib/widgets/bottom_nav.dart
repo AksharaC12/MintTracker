@@ -1,34 +1,43 @@
 import 'package:flutter/material.dart';
+import '../screens/home_screen.dart';
+import '../screens/analytics_screen.dart';
+import '../screens/add_expense_screen.dart';
+import '../screens/profile_screen.dart';
 
-class BottomNav extends StatelessWidget {
-  final int currentIndex;
-  final Function(int) onTap;
+class MainScaffold extends StatefulWidget {
+  const MainScaffold({super.key});
 
-  const BottomNav({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
+  @override
+  State<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends State<MainScaffold> {
+  int _index = 0;
+
+  final screens = const [
+    HomeScreen(),
+    AnalyticsScreen(),
+    AddExpenseScreen(),
+    ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.dashboard),
-          label: 'Dashboard',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.add_circle_outline),
-          label: 'Add',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.receipt_long),
-          label: 'Expenses',
-        ),
-      ],
+    return Scaffold(
+      body: IndexedStack(index: _index, children: screens),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _index,
+        onTap: (i) => setState(() => _index = i),
+        selectedItemColor: const Color(0xFF6C63FF),
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.pie_chart), label: "Analytics"),
+          BottomNavigationBarItem(icon: Icon(Icons.add_circle), label: "Add"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+        ],
+      ),
     );
   }
 }
